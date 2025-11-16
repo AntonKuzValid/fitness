@@ -1,0 +1,16 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: fitness-app
+
+google:
+  sheets:
+    spreadsheet-id: "${GOOGLE_SHEETS_ID:1-HN3fM6N9PswKHqMc6Xbb52XJ0pXR_tJOiJUcGRAKyE}"
+    worksheet-gid: "${GOOGLE_SHEETS_GID:0}"
+
+telegram:
+  bot:
+    token: "${TELEGRAM_BOT_TOKEN:}"
+    username: "${TELEGRAM_BOT_USERNAME:fitness-sheet-reader-bot}"
