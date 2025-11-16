@@ -1,68 +1,58 @@
-# Fitness tracker
+# Fitness Google Sheets bot
 
-This project contains a Spring Boot backend and a Vue 3 front-end that expose a small
-fitness exercise tracker. Exercises are stored inside a Google Sheet where columns 3-6
-store the static exercise data (name, repetitions, weight, comment) and column 7 stores
-the most recent result. The backend exposes REST APIs backed by the Google Sheets API, and
-the front-end consumes the APIs to display exercises and submit updated results.
+This repository now contains a single Spring Boot (Java 21) service built with Gradle. The
+service reads the public Google Sheet that backs the workouts and exposes the data in two
+ways:
+
+1. REST endpoints that return the entire sheet or individual cells.
+2. A Telegram bot that answers "read" with the value stored in cell **A1**.
 
 ## Requirements
 
-- Java 17+
-- Maven 3.9+
-- Node.js 20+ / npm 10+
-- A Google Cloud project with the Sheets API enabled and service account credentials that
-  can edit your spreadsheet
+- Java 21+
+- Gradle (the wrapper `./gradlew` is included)
+- Network access to Google Sheets and the Telegram Bot API
 
-## Backend setup
+## Configuration
 
-1. Create or identify a Google Sheet. Make sure columns C-G (3-7) follow this layout:
-   | Column | Purpose          |
-   | ------ | ---------------- |
-   | C      | Exercise name    |
-   | D      | Number of reps   |
-   | E      | Weight           |
-   | F      | Comment          |
-   | G      | Result that the web app updates |
-
-2. Share the sheet with your service account email address and note the sheet ID from the
-   URL.
-3. Download the service account JSON file and point the `GOOGLE_APPLICATION_CREDENTIALS`
-   environment variable to its location.
-4. Export the additional settings (they all have sensible defaults):
+Environment variables control the connection to Google Sheets and Telegram. The defaults
+match the spreadsheet shared in the task description, so you only have to override the
+values when pointing to a different document.
 
 ```bash
-export GOOGLE_SHEETS_ID="your-spreadsheet-id"
-export GOOGLE_SHEETS_WORKSHEET="Exercises"     # tab name
-export GOOGLE_SHEETS_RANGE="Exercises!A2:G"     # range that contains exercise rows
-export GOOGLE_SHEETS_START_ROW=2                # first data row
-export GOOGLE_SHEETS_RESULT_COLUMN=G            # column where results should be saved
+export GOOGLE_SHEETS_ID="1-HN3fM6N9PswKHqMc6Xbb52XJ0pXR_tJOiJUcGRAKyE"
+export GOOGLE_SHEETS_GID=0                         # worksheet gid from the sheet URL
+export TELEGRAM_BOT_TOKEN="8553072138:AAGqsswP014ayqMcgUSa8VtkE1SwKTSJG_U"
+export TELEGRAM_BOT_USERNAME="fitness-sheet-reader-bot"  # change to your bot username
 ```
 
-5. Start the API:
+The token and username are required for the Telegram bot to register. When the token is
+missing, the web API still works but the bot component is not started.
+
+## Running the application
 
 ```bash
-cd backend
-./mvnw spring-boot:run   # or mvn spring-boot:run if you have Maven installed
+./gradlew bootRun
 ```
 
-The server listens on `http://localhost:8080` and exposes the following endpoints:
+The server listens on `http://localhost:8080`.
 
-- `GET /api/exercises` — return all exercises from the sheet
-- `GET /api/exercises/{rowNumber}` — read one exercise by row number
-- `POST /api/exercises/{rowNumber}/result` — update column 7 with the provided result
+### REST API
 
-## Front-end setup
+- `GET /api/sheet/rows` — returns all rows from the configured worksheet as JSON.
+- `GET /api/sheet/cell/{cellReference}` — returns the value stored in the requested cell
+  (A1 style reference such as `A1`, `C5`, ...).
 
-The Vue app consumes the backend and provides a master/detail UI with an input for
-saving your latest result. The API base URL defaults to `http://localhost:8080/api` but
-can be overridden by creating a `.env` file with `VITE_API_BASE_URL`.
+### Telegram bot
+
+Send `read` to the configured bot. The bot fetches the worksheet, reads cell A1, and replies
+with the stored value (or a hint when the cell is empty).
+
+## Building & testing
 
 ```bash
-cd frontend
-npm install
-npm run dev    # starts Vite on http://localhost:5173
+./gradlew clean build
 ```
 
-When you click an exercise in the list you will see the details plus an input box to save
-results which writes back to column 7 in Google Sheets.
+The build uses Java 21 toolchains and produces a runnable Spring Boot jar in
+`build/libs/`.
