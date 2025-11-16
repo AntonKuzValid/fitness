@@ -7,6 +7,7 @@ public class TelegramBotProperties {
 
     private String token;
     private String username = "fitness-sheet-reader-bot";
+    private String webhookUrl;
 
     public String getToken() {
         return token;
@@ -22,5 +23,13 @@ public class TelegramBotProperties {
 
     public void setUsername(String username) {
         this.username = username;
+    }
+
+    public String getWebhookUrl() {
+        return webhookUrl;
+    }
+
+    public void setWebhookUrl(String webhookUrl) {
+        this.webhookUrl = webhookUrl;
     }
 }

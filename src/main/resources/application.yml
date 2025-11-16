@@ -14,3 +14,5 @@ telegram:
   bot:
     token: "${TELEGRAM_BOT_TOKEN:}"
     username: "${TELEGRAM_BOT_USERNAME:fitness-sheet-reader-bot}"
+    webhook-url: "${TELEGRAM_BOT_WEBHOOK_URL:}"
+    webhook-path: "${TELEGRAM_BOT_WEBHOOK_PATH:/telegram/webhook}"
