@@ -61,6 +61,36 @@ public class GoogleSheetsService {
         return "";
     }
 
+    /**
+     * Reads all exercises defined in the worksheet. Exercises start on the 3rd row (index 2)
+     * and use columns C-J.
+     */
+    public List<Exercise> readExercises() {
+        List<List<String>> rows = readWorksheet();
+        if (rows.size() <= 2) {
+            return Collections.emptyList();
+        }
+
+        List<Exercise> exercises = new ArrayList<>();
+        for (int rowIndex = 2; rowIndex < rows.size(); rowIndex++) {
+            List<String> row = rows.get(rowIndex);
+            String name = getCell(row, 2);
+            if (name == null || name.isBlank()) {
+                continue;
+            }
+            exercises.add(new Exercise(
+                    name,
+                    getCell(row, 3),
+                    getCell(row, 4),
+                    getCell(row, 5),
+                    getCell(row, 6),
+                    getCell(row, 7),
+                    getCell(row, 8),
+                    getCell(row, 9)));
+        }
+        return Collections.unmodifiableList(exercises);
+    }
+
     private String fetchWorksheetCsv() {
         return restClient.get()
                 .uri(uriBuilder -> uriBuilder
@@ -103,6 +133,25 @@ public class GoogleSheetsService {
         return result - 1;
     }
 
+    private String getCell(List<String> row, int index) {
+        if (row == null || index < 0 || index >= row.size()) {
+            return "";
+        }
+        String value = row.get(index);
+        return value == null ? "" : value;
+    }
+
     private record CellCoordinate(int rowIndex, int columnIndex) {
+    }
+
+    public record Exercise(
+            String name,
+            String weight,
+            String sets,
+            String repetitions,
+            String reserve,
+            String rest,
+            String videoLink,
+            String comment) {
     }
 }
