@@ -1,7 +1,6 @@
 # Build outputs
 build/
 .gradle/
-gradle/wrapper/gradle-wrapper.jar
 
 # IDE metadata
 **/.idea/
