@@ -1,0 +1,15 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: fitness-backend
+
+google:
+  sheets:
+    spreadsheet-id: "${GOOGLE_SHEETS_ID:}"
+    worksheet-name: "${GOOGLE_SHEETS_WORKSHEET:Exercises}"
+    data-range: "${GOOGLE_SHEETS_RANGE:Exercises!A2:G}"
+    result-column: "${GOOGLE_SHEETS_RESULT_COLUMN:G}"
+    start-row: ${GOOGLE_SHEETS_START_ROW:2}
+    credentials-file: "${GOOGLE_APPLICATION_CREDENTIALS}" # path to service account json
