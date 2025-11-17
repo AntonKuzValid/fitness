@@ -62,7 +62,7 @@ public class SheetTelegramBot {
         } else if (exerciseValue.isPresent()) {
             handleExerciseValue(chatId, exerciseValue.get());
         } else {
-            sendMessage(chatId, "Напиши 'привет', чтобы получить тренировку, или пришли номер упражнения и значение в формате 1-2.");
+            sendMessage(chatId, "Напиши 'привет', чтобы получить тренировку, или ответь на сообщение с упражнением чтобы записать результат");
         }
 
         return ResponseEntity.ok().build();
