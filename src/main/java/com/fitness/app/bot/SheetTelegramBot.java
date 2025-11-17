@@ -21,6 +21,7 @@ import org.telegram.telegrambots.meta.api.objects.Update;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -30,12 +31,14 @@ import java.util.concurrent.ConcurrentMap;
 public class SheetTelegramBot {
 
     private static final Logger log = LoggerFactory.getLogger(SheetTelegramBot.class);
+    private static final String DONE_REACTION = "\u2705";
 
     private final GoogleSheetsService googleSheetsService;
     private final RestClient telegramClient;
     private final ExerciseResultStorage exerciseResultStorage;
     private final Map<String, List<Exercise>> lastSentExercises = new ConcurrentHashMap<>();
     private final Map<String, ConcurrentMap<Integer, Integer>> exerciseMessageLookup = new ConcurrentHashMap<>();
+    private final Map<String, Set<Integer>> completedExercises = new ConcurrentHashMap<>();
 
     public SheetTelegramBot(GoogleSheetsService googleSheetsService,
                             ExerciseResultStorage exerciseResultStorage,
@@ -103,6 +106,7 @@ public class SheetTelegramBot {
         int index = 1;
         ConcurrentMap<Integer, Integer> chatMessages = new ConcurrentHashMap<>();
         exerciseMessageLookup.put(chatId, chatMessages);
+        completedExercises.put(chatId, ConcurrentHashMap.newKeySet());
         for (Exercise exercise : exercises) {
             Integer messageId = sendMessage(chatId, formatExerciseMessage(index, exercise));
             if (messageId != null) {
@@ -122,6 +126,7 @@ public class SheetTelegramBot {
         }
 
         exerciseResultStorage.storeResult(exercise.rowNumber(), exerciseValue.value());
+        markExerciseCompletion(chatId, exerciseValue);
 
         String exerciseName = exercise.name();
         if (StringUtils.hasText(exerciseName)) {
@@ -166,26 +171,54 @@ public class SheetTelegramBot {
             return Optional.empty();
         }
 
-        Integer replyExerciseNumber = resolveExerciseNumberFromReply(update, chatId);
+        Message reply = update.getMessage().getReplyToMessage();
+        if (reply == null) {
+            return Optional.empty();
+        }
+        Integer replyExerciseNumber = resolveExerciseNumberFromReply(reply, chatId);
         if (replyExerciseNumber != null) {
-            return Optional.of(new ExerciseValue(replyExerciseNumber, message));
+            return Optional.of(new ExerciseValue(replyExerciseNumber, message, reply.getMessageId()));
         }
         return Optional.empty();
     }
 
-    private Integer resolveExerciseNumberFromReply(Update update, String chatId) {
-        if (update == null || update.getMessage() == null) {
-            return null;
-        }
-        Message reply = update.getMessage().getReplyToMessage();
-        if (reply == null) {
-            return null;
-        }
+    private Integer resolveExerciseNumberFromReply(Message reply, String chatId) {
         ConcurrentMap<Integer, Integer> chatMapping = exerciseMessageLookup.get(chatId);
         if (chatMapping == null) {
             return null;
         }
         return chatMapping.get(reply.getMessageId());
+    }
+
+    private void markExerciseCompletion(String chatId, ExerciseValue exerciseValue) {
+        if (exerciseValue.exerciseMessageId() != null) {
+            addDoneReaction(chatId, exerciseValue.exerciseMessageId());
+        }
+        Set<Integer> completed = completedExercises.computeIfAbsent(chatId, key -> ConcurrentHashMap.newKeySet());
+        boolean isNewlyCompleted = completed.add(exerciseValue.exerciseNumber());
+        if (isNewlyCompleted && areAllExercisesCompleted(chatId, completed)) {
+            sendMessage(chatId, "Тренировка закончена!");
+        }
+    }
+
+    private boolean areAllExercisesCompleted(String chatId, Set<Integer> completed) {
+        List<Exercise> exercises = lastSentExercises.get(chatId);
+        return exercises != null && !exercises.isEmpty() && completed.size() >= exercises.size();
+    }
+
+    private void addDoneReaction(String chatId, Integer messageId) {
+        if (messageId == null) {
+            return;
+        }
+        try {
+            telegramClient.post()
+                .uri("/setMessageReaction")
+                .body(new SetMessageReactionRequest(chatId, messageId, List.of(new ReactionTypeEmoji(DONE_REACTION))))
+                .retrieve()
+                .toBodilessEntity();
+        } catch (Exception ex) {
+            log.warn("Unable to set done reaction for message {}", messageId, ex);
+        }
     }
 
     private record SendMessageRequest(@JsonProperty("chat_id") String chatId, String text) {
@@ -197,6 +230,17 @@ public class SheetTelegramBot {
     private record TelegramMessage(@JsonProperty("message_id") Integer messageId) {
     }
 
-    private record ExerciseValue(int exerciseNumber, String value) {
+    private record SetMessageReactionRequest(@JsonProperty("chat_id") String chatId,
+                                             @JsonProperty("message_id") Integer messageId,
+                                             List<ReactionTypeEmoji> reaction) {
+    }
+
+    private record ReactionTypeEmoji(@JsonProperty("type") String type, String emoji) {
+        private ReactionTypeEmoji(String emoji) {
+            this("emoji", emoji);
+        }
+    }
+
+    private record ExerciseValue(int exerciseNumber, String value, Integer exerciseMessageId) {
     }
 }
