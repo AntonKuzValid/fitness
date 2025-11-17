@@ -23,8 +23,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 @RestController
 @RequestMapping("${telegram.bot.webhook-path:/telegram/webhook}")
@@ -32,9 +30,6 @@ import java.util.regex.Pattern;
 public class SheetTelegramBot {
 
     private static final Logger log = LoggerFactory.getLogger(SheetTelegramBot.class);
-
-    private static final Pattern EXERCISE_VALUE_PATTERN = Pattern.compile("\\s*(\\d+)\\s*-\\s*([\\d.,]+)\\s*");
-    private static final Pattern VALUE_ONLY_PATTERN = Pattern.compile("\\s*([\\d.,]+)\\s*");
 
     private final GoogleSheetsService googleSheetsService;
     private final RestClient telegramClient;
@@ -49,8 +44,8 @@ public class SheetTelegramBot {
         this.googleSheetsService = googleSheetsService;
         this.exerciseResultStorage = exerciseResultStorage;
         this.telegramClient = restClientBuilder
-                .baseUrl("https://api.telegram.org/bot" + properties.getToken())
-                .build();
+            .baseUrl("https://api.telegram.org/bot" + properties.getToken())
+            .build();
     }
 
     @PostMapping
@@ -80,10 +75,10 @@ public class SheetTelegramBot {
     private Integer sendMessage(String chatId, String text) {
         try {
             SendMessageResponse response = telegramClient.post()
-                    .uri("/sendMessage")
-                    .body(new SendMessageRequest(chatId, text))
-                    .retrieve()
-                    .body(SendMessageResponse.class);
+                .uri("/sendMessage")
+                .body(new SendMessageRequest(chatId, text))
+                .retrieve()
+                .body(SendMessageResponse.class);
             if (response != null && response.result() != null) {
                 return response.result().messageId();
             }
@@ -138,9 +133,9 @@ public class SheetTelegramBot {
 
     private Exercise resolveExercise(String chatId, int exerciseNumber) {
         return Optional.ofNullable(lastSentExercises.get(chatId))
-                .filter(list -> exerciseNumber >= 1 && exerciseNumber <= list.size())
-                .map(list -> list.get(exerciseNumber - 1))
-                .orElse(null);
+            .filter(list -> exerciseNumber >= 1 && exerciseNumber <= list.size())
+            .map(list -> list.get(exerciseNumber - 1))
+            .orElse(null);
     }
 
     private String formatExerciseMessage(int index, Exercise exercise) {
@@ -170,18 +165,10 @@ public class SheetTelegramBot {
         if (!StringUtils.hasText(message)) {
             return Optional.empty();
         }
-        Matcher matcher = EXERCISE_VALUE_PATTERN.matcher(message);
-        if (matcher.matches()) {
-            int number = Integer.parseInt(matcher.group(1));
-            return Optional.of(new ExerciseValue(number, matcher.group(2)));
-        }
 
         Integer replyExerciseNumber = resolveExerciseNumberFromReply(update, chatId);
         if (replyExerciseNumber != null) {
-            Matcher valueMatcher = VALUE_ONLY_PATTERN.matcher(message);
-            if (valueMatcher.matches()) {
-                return Optional.of(new ExerciseValue(replyExerciseNumber, valueMatcher.group(1)));
-            }
+            return Optional.of(new ExerciseValue(replyExerciseNumber, message));
         }
         return Optional.empty();
     }
