@@ -110,7 +110,7 @@ public class SheetTelegramBot {
             }
             index++;
         }
-        sendMessage(chatId, "Когда закончишь, пришли номер упражнения и его текущее значение в формате 1-2.");
+        sendMessage(chatId, "Напиши 'привет', чтобы получить тренировку, или ответь на сообщение с упражнением чтобы записать результат");
         lastSentExercises.put(chatId, exercises);
     }
 
