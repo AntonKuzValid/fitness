@@ -2,6 +2,7 @@ package com.fitness.app.bot;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fitness.app.config.TelegramBotProperties;
+import com.fitness.app.service.ExerciseResultStorage;
 import com.fitness.app.service.GoogleSheetsService;
 import com.fitness.app.service.GoogleSheetsService.Exercise;
 import org.slf4j.Logger;
@@ -14,12 +15,14 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestClient;
+import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -31,16 +34,20 @@ public class SheetTelegramBot {
     private static final Logger log = LoggerFactory.getLogger(SheetTelegramBot.class);
 
     private static final Pattern EXERCISE_VALUE_PATTERN = Pattern.compile("\\s*(\\d+)\\s*-\\s*([\\d.,]+)\\s*");
+    private static final Pattern VALUE_ONLY_PATTERN = Pattern.compile("\\s*([\\d.,]+)\\s*");
 
     private final GoogleSheetsService googleSheetsService;
     private final RestClient telegramClient;
+    private final ExerciseResultStorage exerciseResultStorage;
     private final Map<String, List<Exercise>> lastSentExercises = new ConcurrentHashMap<>();
-    private final Map<String, Map<Integer, String>> recordedExerciseValues = new ConcurrentHashMap<>();
+    private final Map<String, ConcurrentMap<Integer, Integer>> exerciseMessageLookup = new ConcurrentHashMap<>();
 
     public SheetTelegramBot(GoogleSheetsService googleSheetsService,
+                            ExerciseResultStorage exerciseResultStorage,
                             TelegramBotProperties properties,
                             RestClient.Builder restClientBuilder) {
         this.googleSheetsService = googleSheetsService;
+        this.exerciseResultStorage = exerciseResultStorage;
         this.telegramClient = restClientBuilder
                 .baseUrl("https://api.telegram.org/bot" + properties.getToken())
                 .build();
@@ -54,10 +61,11 @@ public class SheetTelegramBot {
 
         String chatId = update.getMessage().getChatId().toString();
         String message = update.getMessage().getText().trim();
+        Optional<ExerciseValue> exerciseValue = parseExerciseValue(update, chatId);
         if (isHelloCommand(message)) {
             handleGreeting(chatId);
-        } else if (matchesExerciseValue(message)) {
-            handleExerciseValue(chatId, message);
+        } else if (exerciseValue.isPresent()) {
+            handleExerciseValue(chatId, exerciseValue.get());
         } else {
             sendMessage(chatId, "Напиши 'привет', чтобы получить тренировку, или пришли номер упражнения и значение в формате 1-2.");
         }
@@ -69,24 +77,24 @@ public class SheetTelegramBot {
         return update != null && update.hasMessage() && update.getMessage().hasText();
     }
 
-    private void sendMessage(String chatId, String text) {
+    private Integer sendMessage(String chatId, String text) {
         try {
-            telegramClient.post()
+            SendMessageResponse response = telegramClient.post()
                     .uri("/sendMessage")
                     .body(new SendMessageRequest(chatId, text))
                     .retrieve()
-                    .toBodilessEntity();
+                    .body(SendMessageResponse.class);
+            if (response != null && response.result() != null) {
+                return response.result().messageId();
+            }
         } catch (Exception ex) {
             log.warn("Unable to send Telegram response", ex);
         }
+        return null;
     }
 
     private boolean isHelloCommand(String message) {
         return message != null && "привет".equalsIgnoreCase(message.trim());
-    }
-
-    private boolean matchesExerciseValue(String message) {
-        return message != null && EXERCISE_VALUE_PATTERN.matcher(message).matches();
     }
 
     private void handleGreeting(String chatId) {
@@ -98,39 +106,41 @@ public class SheetTelegramBot {
 
         sendMessage(chatId, "Привет! Вот тренировка на сегодня:");
         int index = 1;
+        ConcurrentMap<Integer, Integer> chatMessages = new ConcurrentHashMap<>();
+        exerciseMessageLookup.put(chatId, chatMessages);
         for (Exercise exercise : exercises) {
-            sendMessage(chatId, formatExerciseMessage(index, exercise));
+            Integer messageId = sendMessage(chatId, formatExerciseMessage(index, exercise));
+            if (messageId != null) {
+                chatMessages.put(messageId, index);
+            }
             index++;
         }
         sendMessage(chatId, "Когда закончишь, пришли номер упражнения и его текущее значение в формате 1-2.");
         lastSentExercises.put(chatId, exercises);
     }
 
-    private void handleExerciseValue(String chatId, String message) {
-        Matcher matcher = EXERCISE_VALUE_PATTERN.matcher(message);
-        if (!matcher.matches()) {
-            sendMessage(chatId, "Не понял сообщение. Используй формат номер-значение, например 1-2.");
+    private void handleExerciseValue(String chatId, ExerciseValue exerciseValue) {
+        Exercise exercise = resolveExercise(chatId, exerciseValue.exerciseNumber());
+        if (exercise == null) {
+            sendMessage(chatId, "Не нашёл упражнение с номером " + exerciseValue.exerciseNumber() + ". Сначала запроси тренировку.");
             return;
         }
-        int exerciseNumber = Integer.parseInt(matcher.group(1));
-        String value = matcher.group(2);
-        recordedExerciseValues
-                .computeIfAbsent(chatId, id -> new ConcurrentHashMap<>())
-                .put(exerciseNumber, value);
 
-        String exerciseName = resolveExerciseName(chatId, exerciseNumber);
+        exerciseResultStorage.storeResult(exercise.rowNumber(), exerciseValue.value());
+
+        String exerciseName = exercise.name();
         if (StringUtils.hasText(exerciseName)) {
-            sendMessage(chatId, "Записал упражнение " + exerciseNumber + " (" + exerciseName + "): " + value);
+            sendMessage(chatId, "Записал упражнение " + exerciseValue.exerciseNumber() + " (" + exerciseName + "): " + exerciseValue.value());
         } else {
-            sendMessage(chatId, "Записал упражнение " + exerciseNumber + ": " + value);
+            sendMessage(chatId, "Записал упражнение " + exerciseValue.exerciseNumber() + ": " + exerciseValue.value());
         }
     }
 
-    private String resolveExerciseName(String chatId, int exerciseNumber) {
+    private Exercise resolveExercise(String chatId, int exerciseNumber) {
         return Optional.ofNullable(lastSentExercises.get(chatId))
                 .filter(list -> exerciseNumber >= 1 && exerciseNumber <= list.size())
-                .map(list -> list.get(exerciseNumber - 1).name())
-                .orElse("");
+                .map(list -> list.get(exerciseNumber - 1))
+                .orElse(null);
     }
 
     private String formatExerciseMessage(int index, Exercise exercise) {
@@ -152,6 +162,54 @@ public class SheetTelegramBot {
         }
     }
 
+    private Optional<ExerciseValue> parseExerciseValue(Update update, String chatId) {
+        if (update == null || update.getMessage() == null) {
+            return Optional.empty();
+        }
+        String message = update.getMessage().getText();
+        if (!StringUtils.hasText(message)) {
+            return Optional.empty();
+        }
+        Matcher matcher = EXERCISE_VALUE_PATTERN.matcher(message);
+        if (matcher.matches()) {
+            int number = Integer.parseInt(matcher.group(1));
+            return Optional.of(new ExerciseValue(number, matcher.group(2)));
+        }
+
+        Integer replyExerciseNumber = resolveExerciseNumberFromReply(update, chatId);
+        if (replyExerciseNumber != null) {
+            Matcher valueMatcher = VALUE_ONLY_PATTERN.matcher(message);
+            if (valueMatcher.matches()) {
+                return Optional.of(new ExerciseValue(replyExerciseNumber, valueMatcher.group(1)));
+            }
+        }
+        return Optional.empty();
+    }
+
+    private Integer resolveExerciseNumberFromReply(Update update, String chatId) {
+        if (update == null || update.getMessage() == null) {
+            return null;
+        }
+        Message reply = update.getMessage().getReplyToMessage();
+        if (reply == null) {
+            return null;
+        }
+        ConcurrentMap<Integer, Integer> chatMapping = exerciseMessageLookup.get(chatId);
+        if (chatMapping == null) {
+            return null;
+        }
+        return chatMapping.get(reply.getMessageId());
+    }
+
     private record SendMessageRequest(@JsonProperty("chat_id") String chatId, String text) {
+    }
+
+    private record SendMessageResponse(boolean ok, TelegramMessage result) {
+    }
+
+    private record TelegramMessage(@JsonProperty("message_id") Integer messageId) {
+    }
+
+    private record ExerciseValue(int exerciseNumber, String value) {
     }
 }

@@ -79,6 +79,7 @@ public class GoogleSheetsService {
                 continue;
             }
             exercises.add(new Exercise(
+                    rowIndex + 1,
                     name,
                     getCell(row, 3),
                     getCell(row, 4),
@@ -145,6 +146,7 @@ public class GoogleSheetsService {
     }
 
     public record Exercise(
+            int rowNumber,
             String name,
             String weight,
             String sets,
