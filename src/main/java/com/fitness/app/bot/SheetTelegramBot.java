@@ -31,7 +31,7 @@ import java.util.concurrent.ConcurrentMap;
 public class SheetTelegramBot {
 
     private static final Logger log = LoggerFactory.getLogger(SheetTelegramBot.class);
-    private static final String DONE_REACTION = "\u2705";
+    private static final String DONE_REACTION = "\uD83D\uDC4D";
 
     private final GoogleSheetsService googleSheetsService;
     private final RestClient telegramClient;
