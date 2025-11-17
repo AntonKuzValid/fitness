@@ -9,6 +9,7 @@ google:
   sheets:
     spreadsheet-id: "${GOOGLE_SHEETS_ID:1-HN3fM6N9PswKHqMc6Xbb52XJ0pXR_tJOiJUcGRAKyE}"
     worksheet-gid: "${GOOGLE_SHEETS_GID:0}"
+    service-account-key-json: "${GOOGLE_SERVICE_ACCOUNT_KEY_JSON:}"
 
 telegram:
   bot:
@@ -16,3 +17,4 @@ telegram:
     username: "${TELEGRAM_BOT_USERNAME:fitness-sheet-reader-bot}"
     webhook-url: "${TELEGRAM_BOT_WEBHOOK_URL:}"
     webhook-path: "${TELEGRAM_BOT_WEBHOOK_PATH:/telegram/webhook}"
+
