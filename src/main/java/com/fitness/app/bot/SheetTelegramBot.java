@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestClient;
@@ -39,6 +40,7 @@ public class SheetTelegramBot {
     private final Map<String, List<Exercise>> lastSentExercises = new ConcurrentHashMap<>();
     private final Map<String, ConcurrentMap<Integer, Integer>> exerciseMessageLookup = new ConcurrentHashMap<>();
     private final Map<String, Set<Integer>> completedExercises = new ConcurrentHashMap<>();
+    private final TelegramBotProperties properties;
 
     public SheetTelegramBot(GoogleSheetsService googleSheetsService,
                             ExerciseResultStorage exerciseResultStorage,
@@ -46,24 +48,37 @@ public class SheetTelegramBot {
                             RestClient.Builder restClientBuilder) {
         this.googleSheetsService = googleSheetsService;
         this.exerciseResultStorage = exerciseResultStorage;
+        this.properties = properties;
         this.telegramClient = restClientBuilder
             .baseUrl("https://api.telegram.org/bot" + properties.getToken())
             .build();
     }
 
     @PostMapping
-    public ResponseEntity<Void> onWebhookUpdate(@RequestBody(required = false) Update update) {
+    public ResponseEntity<Void> onWebhookUpdate(
+        @RequestHeader("X-Telegram-Bot-Api-Secret-Token") String secret,
+        @RequestBody(required = false) Update update
+    ) {
+        String chatId = update.getMessage().getChatId().toString();
+        if (!properties.getToken().equals(secret)) {
+            sendMessage(chatId, "403 епта");
+        }
+
+        final var spreadSheetId = properties.getClients().get(update.getMessage().getFrom().getUserName());
+        if (spreadSheetId == null) {
+            sendMessage(chatId, "403 епта");
+        }
+
         if (!hasReadableMessage(update)) {
             return ResponseEntity.ok().build();
         }
 
-        String chatId = update.getMessage().getChatId().toString();
         String message = update.getMessage().getText().trim();
         Optional<ExerciseValue> exerciseValue = parseExerciseValue(update, chatId);
         if (isHelloCommand(message)) {
-            handleGreeting(chatId);
+            handleGreeting(spreadSheetId, chatId);
         } else if (exerciseValue.isPresent()) {
-            handleExerciseValue(chatId, exerciseValue.get());
+            handleExerciseValue(spreadSheetId, chatId, exerciseValue.get());
         } else {
             sendMessage(chatId, "Напиши 'привет', чтобы получить тренировку, или ответь на сообщение с упражнением чтобы записать результат");
         }
@@ -95,8 +110,8 @@ public class SheetTelegramBot {
         return message != null && "привет".equalsIgnoreCase(message.trim());
     }
 
-    private void handleGreeting(String chatId) {
-        List<Exercise> exercises = googleSheetsService.readExercises();
+    private void handleGreeting(String spreadSheetId, String chatId) {
+        List<Exercise> exercises = googleSheetsService.readExercises(spreadSheetId);
         if (exercises.isEmpty()) {
             sendMessage(chatId, "Привет! Не удалось найти упражнения на сегодня.");
             return;
@@ -118,15 +133,14 @@ public class SheetTelegramBot {
         lastSentExercises.put(chatId, exercises);
     }
 
-    private void handleExerciseValue(String chatId, ExerciseValue exerciseValue) {
+    private void handleExerciseValue(String spreadSheetId, String chatId, ExerciseValue exerciseValue) {
         Exercise exercise = resolveExercise(chatId, exerciseValue.exerciseNumber());
         if (exercise == null) {
             sendMessage(chatId, "Не нашёл упражнение с номером " + exerciseValue.exerciseNumber() + ". Сначала запроси тренировку.");
             return;
         }
 
-        exerciseResultStorage.storeResult(exercise.rowNumber(), exerciseValue.value());
-        markExerciseCompletion(chatId, exerciseValue);
+        exerciseResultStorage.storeResult(spreadSheetId, exercise.rowNumber(), exerciseValue.value());
 
         String exerciseName = exercise.name();
         if (StringUtils.hasText(exerciseName)) {
@@ -134,6 +148,8 @@ public class SheetTelegramBot {
         } else {
             sendMessage(chatId, "Записал упражнение " + exerciseValue.exerciseNumber() + ": " + exerciseValue.value());
         }
+
+        markExerciseCompletion(chatId, exerciseValue);
     }
 
     private Exercise resolveExercise(String chatId, int exerciseNumber) {

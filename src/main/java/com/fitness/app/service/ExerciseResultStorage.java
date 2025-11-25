@@ -31,14 +31,13 @@ public class ExerciseResultStorage {
     private final GoogleCredentials credentials;
 
     public ExerciseResultStorage(GoogleSheetsProperties properties, RestClient.Builder restClientBuilder) {
-        Assert.hasText(properties.getSpreadsheetId(), "A Google Sheets id must be configured");
         Assert.hasText(properties.getServiceAccountKeyJson(), "Google service account key must be configured");
         this.properties = properties;
         this.sheetsClient = restClientBuilder.baseUrl("https://sheets.googleapis.com").build();
         this.credentials = loadCredentials(properties.getServiceAccountKeyJson());
     }
 
-    public void storeResult(int rowNumber, String value) {
+    public void storeResult(String spreadSheetId, int rowNumber, String value) {
         Assert.isTrue(rowNumber > 0, "Row numbers start at 1");
         String range = RESULT_COLUMN + rowNumber;
         ValueRangeBody requestBody = new ValueRangeBody(List.of(List.of(value == null ? "" : value)));
@@ -47,7 +46,7 @@ public class ExerciseResultStorage {
                     .uri(uriBuilder -> uriBuilder
                             .path("/v4/spreadsheets/{spreadsheetId}/values/{range}")
                             .queryParam("valueInputOption", "USER_ENTERED")
-                            .build(properties.getSpreadsheetId(), range))
+                            .build(spreadSheetId, range))
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + fetchAccessToken())
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(requestBody)

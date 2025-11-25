@@ -29,10 +29,8 @@ public class GoogleSheetsService {
      * Reads the entire worksheet and returns it as a list of rows where every row contains
      * the cell values in display order.
      */
-    public List<List<String>> readWorksheet() {
-        Assert.hasText(properties.getSpreadsheetId(), "A Google Sheets id must be configured");
-
-        String csvPayload = fetchWorksheetCsv();
+    public List<List<String>> readWorksheet(String spreadSheetId) {
+        String csvPayload = fetchWorksheetCsv(spreadSheetId);
         try (CSVParser parser = CSVParser.parse(csvPayload, CSVFormat.DEFAULT)) {
             List<List<String>> rows = new ArrayList<>();
             for (CSVRecord record : parser) {
@@ -47,26 +45,11 @@ public class GoogleSheetsService {
     }
 
     /**
-     * Reads the value stored in the provided cell reference (A1 style).
-     */
-    public String readCell(String cellReference) {
-        List<List<String>> rows = readWorksheet();
-        CellCoordinate coordinate = parseCellReference(cellReference);
-        if (coordinate.rowIndex() < rows.size()) {
-            List<String> row = rows.get(coordinate.rowIndex());
-            if (coordinate.columnIndex() < row.size()) {
-                return row.get(coordinate.columnIndex());
-            }
-        }
-        return "";
-    }
-
-    /**
      * Reads all exercises defined in the worksheet. Exercises start on the 3rd row (index 2)
      * and use columns C-J.
      */
-    public List<Exercise> readExercises() {
-        List<List<String>> rows = readWorksheet();
+    public List<Exercise> readExercises(String spreadSheetId) {
+        List<List<String>> rows = readWorksheet(spreadSheetId);
         if (rows.size() <= 2) {
             return Collections.emptyList();
         }
@@ -79,28 +62,28 @@ public class GoogleSheetsService {
                 continue;
             }
             exercises.add(new Exercise(
-                    rowIndex + 1,
-                    name,
-                    getCell(row, 3),
-                    getCell(row, 4),
-                    getCell(row, 5),
-                    getCell(row, 6),
-                    getCell(row, 7),
-                    getCell(row, 8),
-                    getCell(row, 9)));
+                rowIndex + 1,
+                name,
+                getCell(row, 3),
+                getCell(row, 4),
+                getCell(row, 5),
+                getCell(row, 6),
+                getCell(row, 7),
+                getCell(row, 8),
+                getCell(row, 9)));
         }
         return Collections.unmodifiableList(exercises);
     }
 
-    private String fetchWorksheetCsv() {
+    private String fetchWorksheetCsv(String spreadSheetId) {
         return restClient.get()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/spreadsheets/d/{spreadsheetId}/gviz/tq")
-                        .queryParam("tqx", "out:csv")
-                        .queryParam("gid", properties.getWorksheetGid())
-                        .build(properties.getSpreadsheetId()))
-                .retrieve()
-                .body(String.class);
+            .uri(uriBuilder -> uriBuilder
+                .path("/spreadsheets/d/{spreadsheetId}/gviz/tq")
+                .queryParam("tqx", "out:csv")
+                .queryParam("gid", properties.getWorksheetGid())
+                .build(spreadSheetId))
+            .retrieve()
+            .body(String.class);
     }
 
     private CellCoordinate parseCellReference(String cellReference) {
@@ -146,14 +129,14 @@ public class GoogleSheetsService {
     }
 
     public record Exercise(
-            int rowNumber,
-            String name,
-            String weight,
-            String sets,
-            String repetitions,
-            String reserve,
-            String rest,
-            String videoLink,
-            String comment) {
+        int rowNumber,
+        String name,
+        String weight,
+        String sets,
+        String repetitions,
+        String reserve,
+        String rest,
+        String videoLink,
+        String comment) {
     }
 }
