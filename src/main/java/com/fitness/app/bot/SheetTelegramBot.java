@@ -82,7 +82,7 @@ public class SheetTelegramBot {
         } else if (exerciseValue.isPresent()) {
             handleExerciseValue(spreadSheetId, chatId, exerciseValue.get());
         } else {
-            sendMessage(chatId, "Напиши 'привет', чтобы получить тренировку, или ответь на сообщение с упражнением чтобы записать результат");
+            sendMessage(chatId, "/training чтобы начать, или ответь на сообщение с упражнением чтобы записать результат");
         }
 
         return ResponseEntity.ok().build();
@@ -109,7 +109,7 @@ public class SheetTelegramBot {
     }
 
     private boolean isHelloCommand(String message) {
-        return message != null && "привет".equalsIgnoreCase(message.trim());
+        return message != null && "/training".equalsIgnoreCase(message.trim());
     }
 
     private void handleGreeting(String spreadSheetId, String chatId) {
@@ -131,7 +131,7 @@ public class SheetTelegramBot {
             }
             index++;
         }
-        sendMessage(chatId, "Напиши 'привет', чтобы получить тренировку, или ответь на сообщение с упражнением чтобы записать результат");
+        sendMessage(chatId, "/training чтобы начать, или ответь на сообщение с упражнением чтобы записать результат");
         lastSentExercises.put(chatId, exercises);
     }
 
