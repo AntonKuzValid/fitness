@@ -11,11 +11,11 @@ google:
     service-account-key-json: "${GOOGLE_SERVICE_ACCOUNT_KEY_JSON:}"
 
 telegram:
-  clients:
-    tonykuz: ${GOOGLE_SHEETS_ID_1}
   bot:
     token: "${TELEGRAM_BOT_TOKEN:}"
     username: "${TELEGRAM_BOT_USERNAME:fitness-sheet-reader-bot}"
     webhook-url: "${TELEGRAM_BOT_WEBHOOK_URL:}"
     webhook-path: "${TELEGRAM_BOT_WEBHOOK_PATH:/telegram/webhook}"
+    clients:
+      tonykuz: ${GOOGLE_SHEETS_ID_1}
 
