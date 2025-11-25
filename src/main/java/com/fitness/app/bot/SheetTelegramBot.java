@@ -26,6 +26,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+import static com.fitness.app.bot.TelegramWebhookInitializer.SECRET;
+
 @RestController
 @RequestMapping("${telegram.bot.webhook-path:/telegram/webhook}")
 @ConditionalOnExpression("T(org.springframework.util.StringUtils).hasText('${telegram.bot.token:}')")
@@ -60,7 +62,7 @@ public class SheetTelegramBot {
         @RequestBody(required = false) Update update
     ) {
         String chatId = update.getMessage().getChatId().toString();
-        if (!properties.getToken().equals(secret)) {
+        if (!SECRET.equals(secret)) {
             sendMessage(chatId, "403 епта");
             return ResponseEntity.ok().build();
         }

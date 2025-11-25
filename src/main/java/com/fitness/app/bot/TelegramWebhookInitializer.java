@@ -13,11 +13,14 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 
+import java.util.UUID;
+
 @Component
 @ConditionalOnExpression("T(org.springframework.util.StringUtils).hasText('${telegram.bot.token:}') && " +
     "T(org.springframework.util.StringUtils).hasText('${telegram.bot.webhook-url:}')")
 public class TelegramWebhookInitializer implements ApplicationRunner {
 
+    public static final String SECRET = UUID.randomUUID().toString();
     private static final Logger log = LoggerFactory.getLogger(TelegramWebhookInitializer.class);
 
     private final RestClient telegramClient;
@@ -38,7 +41,7 @@ public class TelegramWebhookInitializer implements ApplicationRunner {
 
         MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
         body.add("url", properties.getWebhookUrl());
-        body.add("secret_token", properties.getToken());
+        body.add("secret_token", SECRET);
 
         try {
             telegramClient.post()

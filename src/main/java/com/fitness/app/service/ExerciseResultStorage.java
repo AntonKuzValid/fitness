@@ -26,13 +26,11 @@ public class ExerciseResultStorage {
     private static final String RESULT_COLUMN = "K";
     private static final String SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets";
 
-    private final GoogleSheetsProperties properties;
     private final RestClient sheetsClient;
     private final GoogleCredentials credentials;
 
     public ExerciseResultStorage(GoogleSheetsProperties properties, RestClient.Builder restClientBuilder) {
         Assert.hasText(properties.getServiceAccountKeyJson(), "Google service account key must be configured");
-        this.properties = properties;
         this.sheetsClient = restClientBuilder.baseUrl("https://sheets.googleapis.com").build();
         this.credentials = loadCredentials(properties.getServiceAccountKeyJson());
     }
@@ -43,15 +41,15 @@ public class ExerciseResultStorage {
         ValueRangeBody requestBody = new ValueRangeBody(List.of(List.of(value == null ? "" : value)));
         try {
             sheetsClient.put()
-                    .uri(uriBuilder -> uriBuilder
-                            .path("/v4/spreadsheets/{spreadsheetId}/values/{range}")
-                            .queryParam("valueInputOption", "USER_ENTERED")
-                            .build(spreadSheetId, range))
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + fetchAccessToken())
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(requestBody)
-                    .retrieve()
-                    .toBodilessEntity();
+                .uri(uriBuilder -> uriBuilder
+                    .path("/v4/spreadsheets/{spreadsheetId}/values/{range}")
+                    .queryParam("valueInputOption", "USER_ENTERED")
+                    .build(spreadSheetId, range))
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + fetchAccessToken())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(requestBody)
+                .retrieve()
+                .toBodilessEntity();
         } catch (Exception ex) {
             log.error("Unable to store exercise result for range {}", range, ex);
             throw new IllegalStateException("Unable to store exercise result in Google Sheets", ex);
@@ -61,7 +59,7 @@ public class ExerciseResultStorage {
     private GoogleCredentials loadCredentials(String keyJson) {
         try (InputStream inputStream = new ByteArrayInputStream(keyJson.getBytes(StandardCharsets.UTF_8))) {
             GoogleCredentials googleCredentials = GoogleCredentials.fromStream(inputStream)
-                    .createScoped(Collections.singleton(SHEETS_SCOPE));
+                .createScoped(Collections.singleton(SHEETS_SCOPE));
             googleCredentials.refreshIfExpired();
             return googleCredentials;
         } catch (IOException ex) {
