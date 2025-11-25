@@ -62,11 +62,13 @@ public class SheetTelegramBot {
         String chatId = update.getMessage().getChatId().toString();
         if (!properties.getToken().equals(secret)) {
             sendMessage(chatId, "403 епта");
+            return ResponseEntity.ok().build();
         }
 
         final var spreadSheetId = properties.getClients().get(update.getMessage().getFrom().getUserName());
         if (spreadSheetId == null) {
             sendMessage(chatId, "403 епта");
+            return ResponseEntity.ok().build();
         }
 
         if (!hasReadableMessage(update)) {
