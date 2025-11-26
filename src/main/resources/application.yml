@@ -18,4 +18,4 @@ telegram:
     webhook-path: "${TELEGRAM_BOT_WEBHOOK_PATH:/telegram/webhook}"
     clients:
       tonykuz: ${GOOGLE_SHEETS_ID_1}
-
+      serebruha: ${GOOGLE_SHEETS_ID_2}
